@@ -243,12 +243,32 @@ with col3:
 with col4:
     mileage = st.number_input("Jarak Tempuh (mil)", 0, 500_000, 50_000, step=1_000)
 
-engine = st.text_input(
-    "Spesifikasi Mesin",
-    "300.0HP 3.5L V6 Cylinder Engine Gasoline Fuel",
-    help="Contoh: '300.0HP 3.5L V6 ...'. Horsepower, displacement (L), dan "
-         "konfigurasi diekstrak otomatis. Nilai yang tidak terbaca akan diisi median.",
+# Spesifikasi mesin terisi otomatis sesuai (merek, model) bila datanya tersedia
+# di artifacts (key "engines_by_model"); jika tidak, kembali ke input manual.
+DEFAULT_ENGINE = "300.0HP 3.5L V6 Cylinder Engine Gasoline Fuel"
+engine_options = list(
+    A.get("engines_by_model", {}).get(brand, {}).get(model_name, [])
 )
+
+if engine_options:
+    MANUAL = "Lainnya (isi manual)…"
+    pick = st.selectbox(
+        "Spesifikasi Mesin",
+        engine_options + [MANUAL],
+        help="Terisi otomatis sesuai merek dan model. Pilih varian yang sesuai, "
+             "atau isi manual bila tidak tercantum.",
+    )
+    if pick == MANUAL:
+        engine = st.text_input("Spesifikasi Mesin (manual)", engine_options[0])
+    else:
+        engine = pick
+else:
+    engine = st.text_input(
+        "Spesifikasi Mesin",
+        DEFAULT_ENGINE,
+        help="Contoh: '300.0HP 3.5L V6 ...'. Horsepower, displacement (L), dan "
+             "konfigurasi diekstrak otomatis. Nilai yang tidak terbaca akan diisi median.",
+    )
 
 # ----------------------------------------------------------------------
 # Hasil ekstraksi mesin
@@ -285,7 +305,7 @@ if st.button("Hitung Estimasi Harga", type="primary", use_container_width=True):
     X = transform_one(raw, A)
     pred_log = model.predict(X)[0]          # target = log1p(price)
     price = float(np.expm1(pred_log))       # kembalikan ke USD
-    price_idr = price * 16_000
+    price_idr = price * 17_744
 
     vehicle = f"{brand} {model_name} · {model_year} · {grp(mileage)} mil"
     st.markdown(f"""
@@ -293,7 +313,7 @@ if st.button("Hitung Estimasi Harga", type="primary", use_container_width=True):
         <div class="result-vehicle">{vehicle}</div>
         <div class="result-label">Estimasi Harga</div>
         <div class="result-price">$ {price:,.0f}</div>
-        <div class="result-idr">setara Rp {grp(price_idr)} &nbsp;·&nbsp; kurs asumsi Rp 16.000 / USD</div>
+        <div class="result-idr">setara Rp {grp(price_idr)} &nbsp;·&nbsp; kurs asumsi Rp 17.744 / USD</div>
     </div>
     """, unsafe_allow_html=True)
 
