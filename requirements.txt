@@ -1,0 +1,11 @@
+# Sesuaikan versi dengan environment training kamu!
+# Cara cek versi: jalankan di notebook -> import sklearn, catboost, lightgbm, xgboost
+# lalu print(sklearn.__version__) dst. Ganti angka di bawah agar SAMA.
+streamlit
+joblib
+numpy
+pandas
+scikit-learn
+catboost
+lightgbm
+xgboost
