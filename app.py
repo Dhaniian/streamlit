@@ -9,6 +9,8 @@ Berkas pendukung (harus berada di folder yang sama):
     - model_bundle.pkl   (dihasilkan dari notebook)
     - fe_utils.py
 """
+import os
+
 import joblib
 import numpy as np
 import streamlit as st
@@ -185,12 +187,14 @@ st.markdown("""
 # Muat model
 # ----------------------------------------------------------------------
 @st.cache_resource
-def load_bundle():
+def load_bundle(_mtime):
+    # _mtime memaksa cache ter-refresh otomatis tiap kali model_bundle.pkl berubah
     bundle = joblib.load("model_bundle.pkl")
     return bundle["model"], bundle["artifacts"]
 
 try:
-    model, A = load_bundle()
+    _mtime = os.path.getmtime("model_bundle.pkl")
+    model, A = load_bundle(_mtime)
 except FileNotFoundError:
     st.error("Berkas **model_bundle.pkl** tidak ditemukan. "
              "Jalankan terlebih dahulu cell penyimpanan model pada notebook.")
@@ -243,12 +247,28 @@ with col3:
 with col4:
     mileage = st.number_input("Jarak Tempuh (mil)", 0, 500_000, 50_000, step=1_000)
 
-# Spesifikasi mesin terisi otomatis sesuai (merek, model) bila datanya tersedia
-# di artifacts (key "engines_by_model"); jika tidak, kembali ke input manual.
+# Spesifikasi mesin terisi otomatis sesuai (merek, model) dari artifacts
+# (key "engines_by_model"); jika tak tersedia, kembali ke input manual.
 DEFAULT_ENGINE = "300.0HP 3.5L V6 Cylinder Engine Gasoline Fuel"
-engine_options = list(
-    A.get("engines_by_model", {}).get(brand, {}).get(model_name, [])
-)
+ENGINES_BY_MODEL = A.get("engines_by_model", {})
+
+
+def lookup_engines(table, brand, model_name):
+    """Cari varian mesin; toleran terhadap spasi/kapitalisasi pada key."""
+    bmap = table.get(brand)
+    if bmap is None:
+        idx = {str(k).strip().lower(): k for k in table}
+        bkey = idx.get(str(brand).strip().lower())
+        bmap = table.get(bkey, {}) if bkey is not None else {}
+    opts = bmap.get(model_name)
+    if opts is None:
+        idx = {str(k).strip().lower(): k for k in bmap}
+        mkey = idx.get(str(model_name).strip().lower())
+        opts = bmap.get(mkey, []) if mkey is not None else []
+    return list(opts or [])
+
+
+engine_options = lookup_engines(ENGINES_BY_MODEL, brand, model_name)
 
 if engine_options:
     MANUAL = "Lainnya (isi manual)…"
@@ -269,6 +289,13 @@ else:
         help="Contoh: '300.0HP 3.5L V6 ...'. Horsepower, displacement (L), dan "
              "konfigurasi diekstrak otomatis. Nilai yang tidak terbaca akan diisi median.",
     )
+    if not ENGINES_BY_MODEL:
+        st.caption("Auto-fill nonaktif: model_bundle.pkl yang dimuat belum berisi "
+                   "`engines_by_model`. Jalankan ulang sel penyimpanan di notebook, "
+                   "lalu hentikan aplikasi (Ctrl+C) dan jalankan ulang — bukan sekadar Rerun.")
+    else:
+        st.caption("Tidak ada varian mesin tercatat untuk kombinasi merek/model ini — "
+                   "silakan isi manual.")
 
 # ----------------------------------------------------------------------
 # Hasil ekstraksi mesin
